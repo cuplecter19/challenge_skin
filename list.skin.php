@@ -148,6 +148,97 @@ if (!$is_plain_board && $date != 'all') {
 		}
 	}
 }
+
+/* ===================================================================
+ * ★ 수정: 날짜 필터 시 $list와 $write_pages를 필터 기준으로 재생성
+ *
+ * 그누보드 5는 스킨 실행 전에 전체 글 수 기준으로 $list와
+ * $write_pages를 만들기 때문에, 날짜 필터를 적용하면 페이지네이션이
+ * 전체 글 수를 기준으로 잘못 표시됩니다.
+ * 아래 블록에서 날짜 필터링된 결과만으로 목록과 페이지네이션을
+ * 다시 계산하여 덮어씁니다.
+ * =================================================================== */
+if (!$is_plain_board && $date != 'all') {
+	$_rows_per_page = max(1, (int)$board['bo_page_rows']);
+	$_current_page  = max(1, (int)$page);
+	$_offset        = ($_current_page - 1) * $_rows_per_page;
+
+	// 필터된 총 글 수
+	$_cnt_row = sql_fetch("
+		SELECT COUNT(*) AS cnt
+		FROM {$write_table}
+		WHERE wr_is_comment = 0
+		  AND wr_date = '".sql_real_escape_string($date)."'
+		  AND (wr_type = 'log' OR wr_type = '')
+	");
+	$_filtered_total = (int)$_cnt_row['cnt'];
+
+	// 현재 페이지에 해당하는 글 목록 조회
+	$_fres = sql_query("
+		SELECT *
+		FROM {$write_table}
+		WHERE wr_is_comment = 0
+		  AND wr_date = '".sql_real_escape_string($date)."'
+		  AND (wr_type = 'log' OR wr_type = '')
+		ORDER BY wr_num ASC, wr_reply ASC
+		LIMIT ".intval($_offset).", ".intval($_rows_per_page)."
+	");
+	$_new_list = array();
+	while ($_frow = sql_fetch_array($_fres)) {
+		// 그누보드 $list 배열 형식과 호환되도록 필드 보정
+		$_frow['is_notice']   = (!empty($_frow['wr_is_notice']) && (int)$_frow['wr_is_notice'] > 0);
+		$_frow['href']        = G5_BBS_URL.'/board.php?bo_table='.urlencode($bo_table)
+		                        .'&wr_id='.(int)$_frow['wr_id'];
+		$_frow['subject']     = htmlspecialchars($_frow['wr_subject'], ENT_QUOTES, 'UTF-8');
+		$_frow['name']        = isset($_frow['wr_name'])
+		                        ? htmlspecialchars($_frow['wr_name'], ENT_QUOTES, 'UTF-8') : '';
+		$_frow['comment_cnt'] = isset($_frow['wr_comment']) ? (int)$_frow['wr_comment'] : 0;
+		if (!isset($_frow['wr_secret']))  $_frow['wr_secret']  = 0;
+		if (!isset($_frow['wr_protect'])) $_frow['wr_protect'] = '';
+		$_new_list[] = $_frow;
+	}
+	$list = $_new_list; // 그누보드가 만든 $list를 필터된 목록으로 교체
+
+	// 필터된 글 수 기준으로 페이지네이션 HTML 재생성
+	$_page_count  = max(1, (int)$board['bo_page_count']);
+	$_total_pages = max(1, (int)ceil($_filtered_total / $_rows_per_page));
+	$_pg_start    = (int)(floor(($_current_page - 1) / $_page_count) * $_page_count) + 1;
+	$_pg_end      = min($_pg_start + $_page_count - 1, $_total_pages);
+
+	$_bp = 'bo_table='.urlencode($bo_table).'&date='.urlencode($date);
+	if ($sca) $_bp .= '&sca='.urlencode($sca);
+	if ($sfl) $_bp .= '&sfl='.urlencode($sfl);
+	if ($stx) $_bp .= '&stx='.urlencode(stripslashes($stx));
+
+	if ($_total_pages <= 1) {
+		$write_pages = '';
+	} else {
+		$write_pages = '<nav class="pg_wrap"><span class="pg">';
+		if ($_pg_start > 1) {
+			$write_pages .= '<a href="./board.php?'.$_bp.'&page='.($_pg_start - 1).'"'
+			              . ' class="pg_page pg_prev"><i class="sound_only">이전</i></a>';
+		}
+		for ($_p = $_pg_start; $_p <= $_pg_end; $_p++) {
+			if ($_p == $_current_page) {
+				$write_pages .= '<strong class="pg_page pg_current">'.$_p.'</strong>';
+			} else {
+				$write_pages .= '<a href="./board.php?'.$_bp.'&page='.$_p.'"'
+				              . ' class="pg_page">'.$_p.'</a>';
+			}
+		}
+		if ($_pg_end < $_total_pages) {
+			$write_pages .= '<a href="./board.php?'.$_bp.'&page='.($_pg_end + 1).'"'
+			              . ' class="pg_page pg_next"><i class="sound_only">다음</i></a>';
+		}
+		$write_pages .= '</span></nav>';
+	}
+
+	// 임시 변수 정리
+	unset($_rows_per_page, $_current_page, $_offset, $_cnt_row, $_filtered_total,
+	      $_fres, $_frow, $_new_list, $_page_count, $_total_pages,
+	      $_pg_start, $_pg_end, $_bp, $_p);
+}
+/* ★ 수정 끝 ===================================================== */
 ?>
 
 <div <?if($board['bo_table_width']>0){?>style="max-width:<?=$board['bo_table_width']?><?=$board['bo_table_width']>100 ? "px":"%"?>;margin:0 auto;"<?}?>>
