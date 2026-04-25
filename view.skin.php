@@ -77,7 +77,7 @@ if(!$is_viewer && $p_url!=''){
 
 
 
-<!-- 본문 폰�� 조절 버튼 -->
+<!-- 본문 폰   조절 버튼 -->
 <div class="view-font-control">
 
 <img id="modeToggleImg" src="/img/dark.png" alt="라이트모드 토글" style="cursor:pointer; width:24px; height:24px;">
@@ -144,9 +144,9 @@ if(!$is_viewer && $p_url!=''){
 <div id="bo_v_con"><?php
 $content = get_view_thumbnail($view['content']);
 $content = youtube_auto_embed_view($content);
+$content = emote_ev($content); // ★ 이모티콘 치환 추가
 echo $content;
 ?></div>
-
 <?php
 ?>
         <!-- } 본문 내용 끝 -->
