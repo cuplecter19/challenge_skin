@@ -1338,3 +1338,68 @@ span.required::after {
 /* ===== 글목록: 일일 목표는 "보기 전용" (체크 UI 숨김) ===== */
 #daily-goal-list .goal-checkbox { display: none; }
 #daily-goal-list .goal-item { cursor: default; }
+
+/* ===== 툴바 활성 버튼 ===== */
+.challenge-toolbar .ui-btn.active {
+    background: var(--point-color, #4a90d9);
+    color: #fff;
+    font-weight: 700;
+}
+
+/* ===== 로그 모드 단순 목록 ===== */
+.log-mode-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    text-decoration: none;
+    color: inherit;
+    width: 100%;
+    box-sizing: border-box;
+}
+.log-row-num {
+    flex-shrink: 0;
+    width: 40px;
+    text-align: center;
+    color: #999;
+    font-size: 13px;
+}
+.log-row-title {
+    flex: 1;
+    font-size: 14px;
+    color: var(--text-color, #222);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.log-mode-row:hover .log-row-title { text-decoration: underline; }
+.log-row-date {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: #999;
+}
+
+/* ===== 채팅 로그 iframe 컨테이너 ===== */
+.chat-log-section {
+    margin-top: 32px;
+    border-top: 2px solid #e0d8cc;
+    padding-top: 20px;
+}
+.chat-log-container {
+    margin-bottom: 24px;
+}
+.chat-log-label {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 8px;
+    font-style: italic;
+}
+.chat-log-frame {
+    width: 100%;
+    min-height: 400px;
+    border: 1px solid #e0d8cc;
+    border-radius: 8px;
+    display: block;
+}
+

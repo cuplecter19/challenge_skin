@@ -22,25 +22,38 @@ if (!isset($temp['wr_done_rate'])) {
 }
 unset($temp);
 
-$setting = sql_fetch("SELECT * FROM {$write_table} WHERE wr_type = 'setting' ORDER BY wr_id desc LIMIT 1");
-$is_plain_board = (isset($setting['wr_1']) && $setting['wr_1'] == '1');
+// 기존 'log' 및 '' 타입 게시글을 'challenge'로 일괄 마이그레이션 (최초 1회)
+$_migration_check = sql_fetch("SELECT COUNT(*) AS cnt FROM {$write_table} WHERE wr_type = 'log' AND wr_is_comment = 0");
+if ((int)$_migration_check['cnt'] > 0) {
+	sql_query("UPDATE {$write_table} SET wr_type='challenge' WHERE (wr_type='log' OR wr_type='') AND wr_is_comment=0");
+}
+unset($_migration_check);
 
-$date = isset($_GET['date']) ? trim($_GET['date']) : '';
-if ($date == '') $date = date('all');
-if ($is_plain_board) $date = 'all';
-if ($date != 'all' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
+$setting = sql_fetch("SELECT * FROM {$write_table} WHERE wr_type = 'setting' ORDER BY wr_id desc LIMIT 1");
+
+// 표시 모드: 'challenge' 또는 'log'
+$view_mode = isset($_GET['mode']) ? trim($_GET['mode']) : 'challenge';
+if (!in_array($view_mode, array('challenge', 'log'))) $view_mode = 'challenge';
+
+// challenge 모드에서만 date 필터 사용
+$date = 'all';
+if ($view_mode == 'challenge') {
+	$date = isset($_GET['date']) ? trim($_GET['date']) : '';
+	if ($date == '') $date = 'all';
+	if ($date != 'all' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
+}
 
 /* 달성일/연속일 */
 $date_list = array();
 $date_set = array();
 $streak = 0;
-if (!$is_plain_board) {
+if ($view_mode == 'challenge') {
 	$res_dates = sql_query("
 		SELECT DISTINCT wr_date
 		FROM {$write_table}
 		WHERE wr_is_comment = 0
 		  AND wr_date <> ''
-		  AND (wr_type = 'log' OR wr_type = '')
+		  AND wr_type = 'challenge'
 		  AND wr_done_rate >= 100
 		ORDER BY wr_date DESC
 	");
@@ -132,13 +145,13 @@ while ($goal_tmp = sql_fetch_array($checklist_result)) {
 }
 
 $done_map = array();
-if (!$is_plain_board && $date != 'all') {
+if ($view_mode == 'challenge' && $date != 'all') {
 	$done_res = sql_query("
 		SELECT wr_done
 		FROM {$write_table}
 		WHERE wr_is_comment = 0
 		  AND wr_date = '".sql_real_escape_string($date)."'
-		  AND (wr_type = 'log' OR wr_type = '')
+		  AND wr_type = 'challenge'
 	");
 	while ($done_row = sql_fetch_array($done_res)) {
 		$done_ids = explode(',', $done_row['wr_done']);
@@ -150,42 +163,45 @@ if (!$is_plain_board && $date != 'all') {
 }
 
 /* ===================================================================
- * ★ 수정: 날짜 필터 시 $list와 $write_pages를 필터 기준으로 재생성
- *
- * 그누보드 5는 스킨 실행 전에 전체 글 수 기준으로 $list와
- * $write_pages를 만들기 때문에, 날짜 필터를 적용하면 페이지네이션이
- * 전체 글 수를 기준으로 잘못 표시됩니다.
- * 아래 블록에서 날짜 필터링된 결과만으로 목록과 페이지네이션을
- * 다시 계산하여 덮어씁니다.
+ * 모드별 목록 및 페이지네이션 재계산
+ * 그누보드가 전체 글 기준으로 $list/$write_pages를 만들므로 덮어쓰기 필수
  * =================================================================== */
-if (!$is_plain_board && $date != 'all') {
+$_need_repaginate = true;
+$_filter_type = '';
+$_filter_date = '';
+
+if ($view_mode == 'challenge' && $date != 'all') {
+	$_filter_type = 'challenge';
+	$_filter_date = $date;
+} else if ($view_mode == 'challenge') {
+	$_filter_type = 'challenge';
+} else {
+	$_filter_type = 'log';
+}
+
+if ($_need_repaginate) {
 	$_rows_per_page = max(1, (int)$board['bo_page_rows']);
 	$_current_page  = max(1, (int)$page);
 	$_offset        = ($_current_page - 1) * $_rows_per_page;
 
-	// 필터된 총 글 수
-	$_cnt_row = sql_fetch("
-		SELECT COUNT(*) AS cnt
-		FROM {$write_table}
-		WHERE wr_is_comment = 0
-		  AND wr_date = '".sql_real_escape_string($date)."'
-		  AND (wr_type = 'log' OR wr_type = '')
-	");
+	// WHERE 절 구성
+	$_where = "wr_is_comment = 0 AND wr_type = '".sql_real_escape_string($_filter_type)."'";
+	if ($_filter_date != '') {
+		$_where .= " AND wr_date = '".sql_real_escape_string($_filter_date)."'";
+	}
+
+	$_cnt_row = sql_fetch("SELECT COUNT(*) AS cnt FROM {$write_table} WHERE {$_where}");
 	$_filtered_total = (int)$_cnt_row['cnt'];
 
-	// 현재 페이지에 해당하는 글 목록 조회
 	$_fres = sql_query("
 		SELECT *
 		FROM {$write_table}
-		WHERE wr_is_comment = 0
-		  AND wr_date = '".sql_real_escape_string($date)."'
-		  AND (wr_type = 'log' OR wr_type = '')
+		WHERE {$_where}
 		ORDER BY wr_num ASC, wr_reply ASC
 		LIMIT ".intval($_offset).", ".intval($_rows_per_page)."
 	");
 	$_new_list = array();
 	while ($_frow = sql_fetch_array($_fres)) {
-		// 그누보드 $list 배열 형식과 호환되도록 필드 보정
 		$_frow['is_notice']   = (!empty($_frow['wr_is_notice']) && (int)$_frow['wr_is_notice'] > 0);
 		$_frow['href']        = G5_BBS_URL.'/board.php?bo_table='.urlencode($bo_table)
 		                        .'&wr_id='.(int)$_frow['wr_id'];
@@ -197,15 +213,16 @@ if (!$is_plain_board && $date != 'all') {
 		if (!isset($_frow['wr_protect'])) $_frow['wr_protect'] = '';
 		$_new_list[] = $_frow;
 	}
-	$list = $_new_list; // 그누보드가 만든 $list를 필터된 목록으로 교체
+	$list = $_new_list;
 
-	// 필터된 글 수 기준으로 페이지네이션 HTML 재생성
+	// 페이지네이션 HTML 재생성
 	$_page_count  = max(1, (int)$board['bo_page_count']);
 	$_total_pages = max(1, (int)ceil($_filtered_total / $_rows_per_page));
 	$_pg_start    = (int)(floor(($_current_page - 1) / $_page_count) * $_page_count) + 1;
 	$_pg_end      = min($_pg_start + $_page_count - 1, $_total_pages);
 
-	$_bp = 'bo_table='.urlencode($bo_table).'&date='.urlencode($date);
+	$_bp = 'bo_table='.urlencode($bo_table).'&mode='.urlencode($view_mode);
+	if ($_filter_date != '') $_bp .= '&date='.urlencode($_filter_date);
 	if ($sca) $_bp .= '&sca='.urlencode($sca);
 	if ($sfl) $_bp .= '&sfl='.urlencode($sfl);
 	if ($stx) $_bp .= '&stx='.urlencode(stripslashes($stx));
@@ -215,30 +232,26 @@ if (!$is_plain_board && $date != 'all') {
 	} else {
 		$write_pages = '<nav class="pg_wrap"><span class="pg">';
 		if ($_pg_start > 1) {
-			$write_pages .= '<a href="./board.php?'.$_bp.'&page='.($_pg_start - 1).'"'
-			              . ' class="pg_page pg_prev"><i class="sound_only">이전</i></a>';
+			$write_pages .= '<a href="./board.php?'.$_bp.'&page='.($_pg_start - 1).'" class="pg_page pg_prev"><i class="sound_only">이전</i></a>';
 		}
 		for ($_p = $_pg_start; $_p <= $_pg_end; $_p++) {
 			if ($_p == $_current_page) {
 				$write_pages .= '<strong class="pg_page pg_current">'.$_p.'</strong>';
 			} else {
-				$write_pages .= '<a href="./board.php?'.$_bp.'&page='.$_p.'"'
-				              . ' class="pg_page">'.$_p.'</a>';
+				$write_pages .= '<a href="./board.php?'.$_bp.'&page='.$_p.'" class="pg_page">'.$_p.'</a>';
 			}
 		}
 		if ($_pg_end < $_total_pages) {
-			$write_pages .= '<a href="./board.php?'.$_bp.'&page='.($_pg_end + 1).'"'
-			              . ' class="pg_page pg_next"><i class="sound_only">다음</i></a>';
+			$write_pages .= '<a href="./board.php?'.$_bp.'&page='.($_pg_end + 1).'" class="pg_page pg_next"><i class="sound_only">다음</i></a>';
 		}
 		$write_pages .= '</span></nav>';
 	}
 
-	// 임시 변수 정리
-	unset($_rows_per_page, $_current_page, $_offset, $_cnt_row, $_filtered_total,
+	unset($_rows_per_page, $_current_page, $_offset, $_where, $_cnt_row, $_filtered_total,
 	      $_fres, $_frow, $_new_list, $_page_count, $_total_pages,
-	      $_pg_start, $_pg_end, $_bp, $_p);
+	      $_pg_start, $_pg_end, $_bp, $_p, $_need_repaginate, $_filter_type, $_filter_date);
 }
-/* ★ 수정 끝 ===================================================== */
+/* ===================================================== */
 ?>
 
 <div <?if($board['bo_table_width']>0){?>style="max-width:<?=$board['bo_table_width']?><?=$board['bo_table_width']>100 ? "px":"%"?>;margin:0 auto;"<?}?>>
@@ -262,11 +275,12 @@ if (!$is_plain_board && $date != 'all') {
 	</nav>
 	<? } ?>
 
-	<? if(!$is_plain_board) { ?>
 	<div class="challenge-toolbar">
-		<a href="./board.php?bo_table=<?=$bo_table?>&date=all" class="ui-btn">모두 보기</a>
-		<a href="./board.php?bo_table=<?=$bo_table?>" class="ui-btn">오늘 보기</a>
-		<a href="<?php echo $write_href ?>&date=<?=$date?>" class="ui-btn point">글쓰기</a>
+		<a href="./board.php?bo_table=<?=$bo_table?>&mode=challenge"
+		   class="ui-btn<?php echo ($view_mode=='challenge') ? ' active' : ''; ?>">챌린지</a>
+		<a href="./board.php?bo_table=<?=$bo_table?>&mode=log"
+		   class="ui-btn<?php echo ($view_mode=='log') ? ' active' : ''; ?>">로그</a>
+		<a href="<?php echo $write_href ?>&mode=<?=$view_mode?>" class="ui-btn point">글쓰기</a>
 		<? if($is_admin) { ?>
 		<button type="button" class="ui-btn admin" onclick="toggleChallengeSetting()">게시판 설정</button>
 		<? } ?>
@@ -278,13 +292,6 @@ if (!$is_plain_board && $date != 'all') {
 		      method="post"
 		      enctype="multipart/form-data">
 			<input type="hidden" name="bo_table" value="<?php echo $bo_table; ?>">
-
-			<label>
-				<input type="checkbox" name="plain_mode" value="1" <?php echo ($is_plain_board ? 'checked' : ''); ?>>
-				일반 게시판 모드
-			</label>
-
-			<hr style="border:0; border-top:1px solid #D6E8F7; margin:12px 0;">
 
 			<div style="font-weight:700; margin-bottom:6px;">달성 도장 이미지 설정(교체 업로드)</div>
 			<div style="font-size:12px; color:#777; margin-bottom:10px;">
@@ -312,6 +319,7 @@ if (!$is_plain_board && $date != 'all') {
 	</div>
 	<?php } ?>
 
+	<?php if($view_mode == 'challenge') { ?>
 	<div class="challenge-layout">
 		<div class="challenge-side">
 			<div class="challenge-side-left">
@@ -340,7 +348,7 @@ if (!$is_plain_board && $date != 'all') {
 			</div>
 		</div>
 		<div class="challenge-main">
-	<? } ?>
+	<?php } ?>
 
 	<form name="fboardlist" id="fboardlist" action="./board_list_update.php" onsubmit="return fboardlist_submit(this);" method="post">
 	<input type="hidden" name="bo_table" value="<?php echo $bo_table ?>">
@@ -366,16 +374,9 @@ if (!$is_plain_board && $date != 'all') {
 		}
 		if ($row_type == 'setting' || $row_type == 'checklist') continue;
 
-		if (!$is_plain_board) {
-			$row_date = '';
-			if (isset($list[$i]['wr_date'])) {
-				$row_date = $list[$i]['wr_date'];
-			} else {
-				$_date_row = sql_fetch("SELECT wr_date FROM {$write_table} WHERE wr_id = '{$list[$i]['wr_id']}'");
-				$row_date = isset($_date_row['wr_date']) ? $_date_row['wr_date'] : '';
-			}
-			if ($date != 'all' && $row_date != $date) continue;
-		}
+		// 모드별 필터: 해당 모드의 글만 표시
+		if ($view_mode == 'challenge' && $row_type != 'challenge') continue;
+		if ($view_mode == 'log' && !in_array($row_type, array('log', ''))) continue;
 
 		$visible_count++;
 
@@ -388,14 +389,14 @@ if (!$is_plain_board && $date != 'all') {
 		}
 
 		$_stamp_url = '';
-		if (!$is_plain_board) {
+		if ($view_mode == 'challenge') {
 			if ($_rate >= 100 && $stamp_urls[100] != '') $_stamp_url = $stamp_urls[100];
 			else if ($_rate >= 60 && $stamp_urls[60] != '')  $_stamp_url = $stamp_urls[60];
 			else if ($_rate >= 30 && $stamp_urls[30] != '')  $_stamp_url = $stamp_urls[30];
 		}
 	?>
 		<li class="theme-box <? if ($list[$i]['is_notice']) echo "bo_notice"; ?>">
-			<?php if ($_stamp_url != '') { ?>
+			<?php if ($view_mode == 'challenge' && $_stamp_url != '') { ?>
 				<div class="done-stamp-overlay">
 					<img src="<?php echo htmlspecialchars($_stamp_url, ENT_QUOTES, 'UTF-8'); ?>"
 					     alt="달성 도장"
@@ -403,6 +404,15 @@ if (!$is_plain_board && $date != 'all') {
 				</div>
 			<?php } ?>
 
+			<?php if ($view_mode == 'log') { ?>
+			<a href="<?php echo $list[$i]['href'] ?>" class="log-mode-row">
+				<span class="log-row-num"><?php echo $visible_count ?></span>
+				<span class="log-row-title"><?php echo $list[$i]['subject']; ?></span>
+				<span class="log-row-date">
+					<?php if (!$list[$i]['is_notice']) echo date('Y.m.d.', strtotime($list[$i]['wr_datetime'])); ?>
+				</span>
+			</a>
+			<?php } else { ?>
 			<span class="td_chk">
 				<?php if ($is_checkbox) { ?>
 					<label for="chk_wr_id_<?php echo $i ?>" class="sound_only">
@@ -521,6 +531,7 @@ if (!$is_plain_board && $date != 'all') {
 					</span>
 				</div>
 			</a>
+			<?php } ?>
 		</li>
 	<? } ?>
 
@@ -558,6 +569,7 @@ if (!$is_plain_board && $date != 'all') {
 
 		<form name="fsearch" method="get">
 			<input type="hidden" name="bo_table" value="<? echo $bo_table ?>">
+			<input type="hidden" name="mode" value="<?php echo htmlspecialchars($view_mode, ENT_QUOTES, 'UTF-8'); ?>">
 			<input type="hidden" name="sca" value="<? echo $sca ?>">
 			<input type="hidden" name="sop" value="and">
 			<select name="sfl" id="sfl">
@@ -571,15 +583,15 @@ if (!$is_plain_board && $date != 'all') {
 		</form>
 	</fieldset>
 
-	<? if(!$is_plain_board) { ?>
+	<?php if($view_mode == 'challenge') { ?>
 		</div>
 	</div>
-	<? } ?>
+	<?php } ?>
 </div>
 </div>
 
 <script>
-<? if(!$is_plain_board) { ?>
+<?php if($view_mode == 'challenge') { ?>
 var challengeWritten = <?=json_encode($date_set, JSON_UNESCAPED_UNICODE)?>;
 var challengeSelectedDate = '<?=$date?>';
 function renderChallengeCalendar(dateText) {
@@ -670,7 +682,7 @@ $(function(){
 		});
 	});
 });
-<? } ?>
+<?php } ?>
 </script>
 
 <? if ($is_checkbox) { ?>

@@ -57,8 +57,15 @@ if(!$is_viewer && $p_url!=''){
     <div class="files">
         <ul>
         <?
+        $html_attachments = array(); // HTML 파일 별도 수집
+
         for ($i=0; $i<count($view['file']); $i++) {
             if (isset($view['file'][$i]['source']) && $view['file'][$i]['source'] && !$view['file'][$i]['view']) {
+                $ext = strtolower(pathinfo($view['file'][$i]['source'], PATHINFO_EXTENSION));
+                if ($ext === 'html' || $ext === 'htm') {
+                    // HTML 파일 → 채팅 로그 렌더링 대상
+                    $html_attachments[] = $view['file'][$i];
+                } else {
          ?>
             <li>
                 <a href="<? echo $view['file'][$i]['href'];  ?>" class="view_file_download">
@@ -70,6 +77,7 @@ if(!$is_viewer && $p_url!=''){
                 <span>DATE : <? echo $view['file'][$i]['datetime'] ?></span>
             </li>
         <?
+                }
             }
         }
         ?>
@@ -148,6 +156,36 @@ $content = emote_ev($content); // ★ 이모티콘 치환 추가
 echo $content;
 ?></div>
 <?php
+// HTML 첨부파일 채팅 로그 iframe 렌더링
+if (!empty($html_attachments)) {
+    echo '<div class="chat-log-section">';
+    foreach ($html_attachments as $hf) {
+        // board_file 테이블에서 실제 서버 저장 파일명 조회
+        $bf_row = sql_fetch("
+            SELECT bf_file
+            FROM {$g5['board_file_table']}
+            WHERE bo_table='".sql_real_escape_string($bo_table)."'
+              AND wr_id='".intval($view['wr_id'])."'
+              AND bf_source='".sql_real_escape_string($hf['source'])."'
+            LIMIT 1
+        ");
+        if ($bf_row && $bf_row['bf_file']) {
+            $file_url = G5_DATA_URL.'/file/'.$bo_table.'/'.$bf_row['bf_file'];
+            echo '<div class="chat-log-container">';
+            echo '<div class="chat-log-label">'.htmlspecialchars($hf['source'], ENT_QUOTES, 'UTF-8').'</div>';
+            echo '<iframe'
+                .' src="'.htmlspecialchars($file_url, ENT_QUOTES, 'UTF-8').'"'
+                .' class="chat-log-frame"'
+                .' scrolling="auto"'
+                .' frameborder="0"'
+                .' onload="(function(f){try{f.style.height=f.contentWindow.document.body.scrollHeight+\'px\';}catch(e){f.style.height=\'600px\';}})(this)">'
+                .'</iframe>';
+            echo '</div>';
+        }
+    }
+    unset($hf);
+    echo '</div>';
+}
 ?>
         <!-- } 본문 내용 끝 -->
     </div>

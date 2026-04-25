@@ -45,44 +45,46 @@ if($set_secret) {
 }
 
 $wr_type_value = isset($wr_type) ? trim($wr_type) : '';
-if (!in_array($wr_type_value, array('', 'log', 'setting', 'checklist'))) $wr_type_value = '';
+if (!in_array($wr_type_value, array('', 'log', 'challenge', 'setting', 'checklist'))) $wr_type_value = 'log';
 
 $wr_date_value = isset($wr_date) ? trim($wr_date) : '';
-if ($wr_type_value == 'log' || $wr_type_value == '') {
-	if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $wr_date_value)) $wr_date_value = date('Y-m-d');
-} else {
-	$wr_date_value = '';
-}
-
 $wr_done_value = isset($wr_done) ? trim($wr_done) : '';
 if (!preg_match('/^[0-9,]*$/', $wr_done_value)) $wr_done_value = '';
 
+if ($wr_type_value == 'challenge') {
+	if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $wr_date_value)) $wr_date_value = date('Y-m-d');
+} else {
+	$wr_date_value = '';
+	$wr_done_value = ''; // 로그/일반 글은 done 데이터 불필요
+}
+
 /* ===== 달성률 계산 ===== */
 $done_ids = array();
-if ($wr_done_value !== '') {
-	$tmp = explode(',', $wr_done_value);
-	foreach ($tmp as $v) {
-		$v = trim($v);
-		if ($v !== '' && ctype_digit($v)) $done_ids[$v] = true; // unique
-	}
-}
-$wr_done_count = count($done_ids);
-
-// 현재 등록된 일일목표 총 개수(로그 글에서만 의미 있음)
+$wr_done_count = 0;
 $wr_goal_total = 0;
-if ($wr_type_value == 'log' || $wr_type_value == '') {
+$wr_done_rate = 0;
+
+if ($wr_type_value == 'challenge') {
+	if ($wr_done_value !== '') {
+		$tmp = explode(',', $wr_done_value);
+		foreach ($tmp as $v) {
+			$v = trim($v);
+			if ($v !== '' && ctype_digit($v)) $done_ids[$v] = true; // unique
+		}
+	}
+	$wr_done_count = count($done_ids);
+
+	// 현재 등록된 일일목표 총 개수(챌린지 글에서만 의미 있음)
 	$cnt_row = sql_fetch("SELECT COUNT(*) AS cnt FROM {$write_table} WHERE wr_type='checklist'");
 	$wr_goal_total = isset($cnt_row['cnt']) ? (int)$cnt_row['cnt'] : 0;
-}
 
-$wr_done_rate = 0;
-if ($wr_goal_total > 0) {
-	$wr_done_rate = (int)floor(($wr_done_count / $wr_goal_total) * 100);
-	if ($wr_done_rate > 100) $wr_done_rate = 100;
-	if ($wr_done_rate < 0) $wr_done_rate = 0;
-} else {
-	$wr_done_rate = 0;
+	if ($wr_goal_total > 0) {
+		$wr_done_rate = (int)floor(($wr_done_count / $wr_goal_total) * 100);
+		if ($wr_done_rate > 100) $wr_done_rate = 100;
+		if ($wr_done_rate < 0) $wr_done_rate = 0;
+	}
 }
+// 로그/일반 글은 달성률 항상 0
 
 $wr_id = (int)$wr_id;
 $html_value = isset($html) ? $html : '';
@@ -105,5 +107,7 @@ sql_query("
 } 
 
 if (isset($wr_type_value) && $wr_type_value == 'setting') goto_url(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table);
-goto_url(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.$qstr);
+// 작성 모드를 리다이렉트 URL에 포함
+$_redirect_mode = ($wr_type_value == 'challenge') ? 'challenge' : 'log';
+goto_url(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.'&mode='.$_redirect_mode.$qstr);
 ?>
