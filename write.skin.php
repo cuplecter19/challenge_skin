@@ -135,7 +135,6 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 		</dd>
 	</dl>
 
-	<?php if (!$is_plain_board) { ?>
 	<div id="challenge-fields" style="display:<?php echo $is_challenge_post ? 'block' : 'none'; ?>;">
 	<dl>
 		<dt>기록일</dt>
@@ -160,7 +159,6 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 		</dd>
 	</dl>
 	</div>
-	<?php } ?>
 
 	<dl>
 		<dt>내용</dt>
