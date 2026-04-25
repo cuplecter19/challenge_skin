@@ -4,7 +4,16 @@ if (!defined('_GNUBOARD_')) exit; // 개별 페이지 접근 불가
 add_stylesheet('<link rel="stylesheet" href="'.$board_skin_url.'/style.css">', 0);
 
 $setting = sql_fetch("SELECT * FROM {$write_table} WHERE wr_type = 'setting' ORDER BY wr_id desc LIMIT 1");
-$is_plain_board = (isset($setting['wr_1']) && $setting['wr_1'] == '1');
+// 작성 모드: mode 파라미터 또는 기존 글의 wr_type으로 결정
+$write_mode = isset($_GET['mode']) ? trim($_GET['mode']) : '';
+if (!in_array($write_mode, array('challenge', 'log'))) $write_mode = 'challenge'; // 기본값: 챌린지
+// 수정 시: 기존 글의 wr_type으로 초기값 설정
+if ($w == 'u' && isset($write['wr_type'])) {
+    if ($write['wr_type'] == 'challenge') $write_mode = 'challenge';
+    else if (in_array($write['wr_type'], array('log', ''))) $write_mode = 'log';
+}
+$is_challenge_post = ($write_mode == 'challenge'); // 편의 변수
+
 $wr_date_value = isset($_GET['date']) ? trim($_GET['date']) : '';
 if ($wr_date_value == '' && isset($write['wr_date']) && $write['wr_date'] != '') $wr_date_value = $write['wr_date'];
 if ($wr_date_value == '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $wr_date_value)) $wr_date_value = date('Y-m-d');
@@ -28,7 +37,8 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 	<input type="hidden" name="sst" value="<?php echo $sst ?>">
 	<input type="hidden" name="sod" value="<?php echo $sod ?>">
 	<input type="hidden" name="page" value="<?php echo $page ?>">
-	<input type="hidden" name="wr_type" value="<?php echo $is_plain_board ? '' : 'log'; ?>">
+	<!-- wr_type은 JS가 챌린지 체크박스 상태에 따라 동적으로 설정 -->
+	<input type="hidden" name="wr_type" id="wr_type_hidden" value="<?php echo $is_challenge_post ? 'challenge' : 'log'; ?>">
 	<input type="hidden" name="wr_done" id="wr_done" value="<?php echo isset($write['wr_done']) ? $write['wr_done'] : ''; ?>">
 	<?php
 	$option = '';
@@ -113,7 +123,19 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 		</dd>
 	</dl>
 
-	<?php if (!$is_plain_board) { ?>
+	<dl>
+		<dt>구분</dt>
+		<dd>
+			<label>
+				<input type="checkbox" id="is_challenge_chk" name="is_challenge" value="1"
+				       <?php echo $is_challenge_post ? 'checked' : ''; ?>>
+				챌린지 게시물
+			</label>
+			<small style="color:#999; font-size:12px; margin-left:8px;">체크 시 일일목표 달성 여부를 기록합니다.</small>
+		</dd>
+	</dl>
+
+	<div id="challenge-fields" style="display:<?php echo $is_challenge_post ? 'block' : 'none'; ?>;">
 	<dl>
 		<dt>기록일</dt>
 		<dd><input type="text" name="wr_date" id="wr_date" value="<?php echo $wr_date_value; ?>"
@@ -136,7 +158,7 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 			</div>
 		</dd>
 	</dl>
-	<?php } ?>
+	</div>
 
 	<dl>
 		<dt>내용</dt>
@@ -233,14 +255,15 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 
 	function fwrite_submit(f) {
 		<?php echo $editor_js; ?>
-		<?php if (!$is_plain_board) { ?>
-		updateWrDoneField();
-		if (!/^\d{4}-\d{2}-\d{2}$/.test($.trim($('#wr_date').val()))) {
-			alert('기록일 형식은 YYYY-MM-DD 입니다.');
-			$('#wr_date').focus();
-			return false;
+		// 챌린지 게시물일 때만 기록일 유효성 검사
+		if ($('#is_challenge_chk').is(':checked')) {
+			updateWrDoneField();
+			if (!/^\d{4}-\d{2}-\d{2}$/.test($.trim($('#wr_date').val()))) {
+				alert('기록일 형식은 YYYY-MM-DD 입니다.');
+				$('#wr_date').focus();
+				return false;
+			}
 		}
-		<?php } ?>
 
 		var subject = "", content = "";
 		$.ajax({
@@ -278,7 +301,17 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 
 	console.log('g5_bbs_url =', typeof g5_bbs_url !== 'undefined' ? g5_bbs_url : 'UNDEFINED');
 
-	<?php if (!$is_plain_board) { ?>
+	// 챌린지 체크박스 토글
+	$('#is_challenge_chk').on('change', function() {
+		if ($(this).is(':checked')) {
+			$('#challenge-fields').slideDown(150);
+			$('#wr_type_hidden').val('challenge');
+		} else {
+			$('#challenge-fields').slideUp(150);
+			$('#wr_type_hidden').val('log');
+		}
+	});
+
 	function updateWrDoneField() {
 		var doneIds = [];
 		$('.goal-item.done').each(function(){ doneIds.push($(this).data('wr-id')); });
@@ -288,7 +321,6 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 		$(this).toggleClass('done');
 		updateWrDoneField();
 	});
-	<?php } ?>
 	</script>
 </section>
 

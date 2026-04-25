@@ -82,10 +82,6 @@ if ($setting_id <= 0) {
 
 sql_query("UPDATE {$write_table} SET wr_type='setting' WHERE wr_id='{$setting_id}'");
 
-// 4) plain_mode 저장
-$plain_mode = (isset($_POST['plain_mode']) && $_POST['plain_mode'] == '1') ? '1' : '';
-sql_query("UPDATE {$write_table} SET wr_1='".sql_real_escape_string($plain_mode)."' WHERE wr_id='{$setting_id}'");
-
 // 업로드 저장 경로
 $save_dir = G5_DATA_PATH.'/file/'.$bo_table;
 if (!is_dir($save_dir)) @mkdir($save_dir, G5_DIR_PERMISSION, true);
