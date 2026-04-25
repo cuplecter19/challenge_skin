@@ -283,7 +283,7 @@
 }
 
 .board-write > dl { position: relative; margin-bottom: 4px; }
-.board-write > dl > dt { width: 70px; position: absolute; line-height: 32px; text-align: center; color: #5797f8; font-weight: 600; font-size: 13px; }
+.board-write > dl > dt { width: 70px; position: absolute; line-height: 32px; text-align: center; color: #2a6cb8; font-weight: 600; font-size: 13px; }
 .board-write > dl > dd { width: 100%; margin-left: 0; padding-left: 80px; box-sizing: border-box; line-height: 32px; }
 .board-write input.frm_input.full { width: 100%; display: block; margin: 1px 0; }
 
@@ -425,7 +425,7 @@
 .view-nav-item .nav-content { min-width: 0; }
 
 .view-nav { margin-top: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.bo_v_nb, .bo_v_com { float: right; }
+.bo_v_nb, .bo_v_com { float: right; margin: 20px auto; }
 
 /* ===== 댓글 목록 (뷰 본문 외 — 수정 대상) ===== */
 .board-comment-list { position: relative; margin-top: 20px; }
@@ -1208,6 +1208,7 @@ blockquote.se2_quote2:has(p[style*="text-align: right"]) {
 .goal-item {
     display: flex;
     align-items: center;
+    color: #2a6cb8;
     gap: 8px;
     margin-bottom: 8px;
     cursor: pointer;
