@@ -22,13 +22,6 @@ if (!isset($temp['wr_done_rate'])) {
 }
 unset($temp);
 
-// 기존 'log' 및 '' 타입 게시글을 'challenge'로 일괄 마이그레이션 (최초 1회)
-$_migration_check = sql_fetch("SELECT COUNT(*) AS cnt FROM {$write_table} WHERE wr_type = 'log' AND wr_is_comment = 0");
-if ((int)$_migration_check['cnt'] > 0) {
-	sql_query("UPDATE {$write_table} SET wr_type='challenge' WHERE (wr_type='log' OR wr_type='') AND wr_is_comment=0");
-}
-unset($_migration_check);
-
 $setting = sql_fetch("SELECT * FROM {$write_table} WHERE wr_type = 'setting' ORDER BY wr_id desc LIMIT 1");
 
 // 표시 모드: 'challenge' 또는 'log'
@@ -62,12 +55,10 @@ if ($view_mode == 'challenge') {
 	}
 	$date_set = array_flip($date_list);
 
-	/* ★ 변경: 연속일 카운트 로직 */
 	$today = date('Y-m-d');
 	$yesterday = date('Y-m-d', strtotime('-1 day'));
 
 	if (isset($date_set[$today])) {
-		// 오늘 100% 달성 → 오늘부터 역순 카운트
 		$streak = 0;
 		$check_day = $today;
 		while (isset($date_set[$check_day])) {
@@ -75,7 +66,6 @@ if ($view_mode == 'challenge') {
 			$check_day = date('Y-m-d', strtotime($check_day . ' -1 day'));
 		}
 	} else if (isset($date_set[$yesterday])) {
-		// 오늘 아직 미달성, 어제는 달성 → 어제부터 역순 카운트
 		$streak = 0;
 		$check_day = $yesterday;
 		while (isset($date_set[$check_day])) {
@@ -83,10 +73,8 @@ if ($view_mode == 'challenge') {
 			$check_day = date('Y-m-d', strtotime($check_day . ' -1 day'));
 		}
 	} else {
-		// 오늘도 어제도 미달성 → 0
 		$streak = 0;
 	}
-	/* ★ 변경 끝 */
 }
 
 /* ===== 도장 이미지 URL 로딩 ===== */
@@ -164,7 +152,6 @@ if ($view_mode == 'challenge' && $date != 'all') {
 
 /* ===================================================================
  * 모드별 목록 및 페이지네이션 재계산
- * 그누보드가 전체 글 기준으로 $list/$write_pages를 만들므로 덮어쓰기 필수
  * =================================================================== */
 $_need_repaginate = true;
 $_filter_type = '';
@@ -184,7 +171,6 @@ if ($_need_repaginate) {
 	$_current_page  = max(1, (int)$page);
 	$_offset        = ($_current_page - 1) * $_rows_per_page;
 
-	// WHERE 절 구성
 	$_where = "wr_is_comment = 0 AND wr_type = '".sql_real_escape_string($_filter_type)."'";
 	if ($_filter_date != '') {
 		$_where .= " AND wr_date = '".sql_real_escape_string($_filter_date)."'";
@@ -215,7 +201,6 @@ if ($_need_repaginate) {
 	}
 	$list = $_new_list;
 
-	// 페이지네이션 HTML 재생성
 	$_page_count  = max(1, (int)$board['bo_page_count']);
 	$_total_pages = max(1, (int)ceil($_filtered_total / $_rows_per_page));
 	$_pg_start    = (int)(floor(($_current_page - 1) / $_page_count) * $_page_count) + 1;
@@ -251,7 +236,6 @@ if ($_need_repaginate) {
 	      $_fres, $_frow, $_new_list, $_page_count, $_total_pages,
 	      $_pg_start, $_pg_end, $_bp, $_p, $_need_repaginate, $_filter_type, $_filter_date);
 }
-/* ===================================================== */
 ?>
 
 <div <?if($board['bo_table_width']>0){?>style="max-width:<?=$board['bo_table_width']?><?=$board['bo_table_width']>100 ? "px":"%"?>;margin:0 auto;"<?}?>>
@@ -303,12 +287,10 @@ if ($_need_repaginate) {
 				<div style="font-size:12px; margin-bottom:4px;">30% 도장</div>
 				<input type="file" name="stamp_30" class="frm_file frm_input full">
 			</div>
-
 			<div style="margin-bottom:10px;">
 				<div style="font-size:12px; margin-bottom:4px;">60% 도장</div>
 				<input type="file" name="stamp_60" class="frm_file frm_input full">
 			</div>
-
 			<div style="margin-bottom:10px;">
 				<div style="font-size:12px; margin-bottom:4px;">100% 도장</div>
 				<input type="file" name="stamp_100" class="frm_file frm_input full">
@@ -374,7 +356,6 @@ if ($_need_repaginate) {
 		}
 		if ($row_type == 'setting' || $row_type == 'checklist') continue;
 
-		// 모드별 필터: 해당 모드의 글만 표시
 		if ($view_mode == 'challenge' && $row_type != 'challenge') continue;
 		if ($view_mode == 'log' && !in_array($row_type, array('log', ''))) continue;
 
@@ -395,7 +376,8 @@ if ($_need_repaginate) {
 			else if ($_rate >= 30 && $stamp_urls[30] != '')  $_stamp_url = $stamp_urls[30];
 		}
 	?>
-		<li class="theme-box <? if ($list[$i]['is_notice']) echo "bo_notice"; ?>">
+		<!-- ★ log-item 클래스 추가: .avocado-list li 의 grid 레이아웃을 로그 모드에서 block 으로 리셋 -->
+		<li class="theme-box<?php echo ($view_mode=='log') ? ' log-item' : ''; ?> <? if ($list[$i]['is_notice']) echo "bo_notice"; ?>">
 			<?php if ($view_mode == 'challenge' && $_stamp_url != '') { ?>
 				<div class="done-stamp-overlay">
 					<img src="<?php echo htmlspecialchars($_stamp_url, ENT_QUOTES, 'UTF-8'); ?>"
@@ -406,11 +388,18 @@ if ($_need_repaginate) {
 
 			<?php if ($view_mode == 'log') { ?>
 			<a href="<?php echo $list[$i]['href'] ?>" class="log-mode-row">
-				<span class="log-row-num"><?php echo $visible_count ?></span>
-				<span class="log-row-title"><?php echo $list[$i]['subject']; ?></span>
-				<span class="log-row-date">
-					<?php if (!$list[$i]['is_notice']) echo date('Y.m.d.', strtotime($list[$i]['wr_datetime'])); ?>
-				</span>
+   			 <span class="log-row-num"><?php echo $visible_count ?></span>
+    			<span class="log-row-title"><?php echo $list[$i]['subject']; ?></span>
+   			 <?php if ($list[$i]['wr_protect'] != '') { ?>
+   			     <span class="highlight">보호글</span>
+    			<?php } elseif (strstr($list[$i]['wr_option'], 'secret')) { ?>
+     			   <span class="highlight">비밀글</span>
+ 			   <?php } elseif ($list[$i]['wr_secret']) { ?>
+  			      <span class="highlight">멤버글</span>
+  			  <?php } ?>
+ 			   <span class="log-row-date">
+  			      <?php if (!$list[$i]['is_notice']) echo date('Y.m.d.', strtotime($list[$i]['wr_datetime'])); ?>
+   			 </span>
 			</a>
 			<?php } else { ?>
 			<span class="td_chk">
@@ -566,7 +555,6 @@ if ($_need_repaginate) {
 
 	<fieldset id="bo_sch" class="txt-center">
 		<legend>게시물 검색</legend>
-
 		<form name="fsearch" method="get">
 			<input type="hidden" name="bo_table" value="<? echo $bo_table ?>">
 			<input type="hidden" name="mode" value="<?php echo htmlspecialchars($view_mode, ENT_QUOTES, 'UTF-8'); ?>">
@@ -615,7 +603,6 @@ function renderChallengeCalendar(dateText) {
 		var dd = (d < 10) ? '0' + d : d;
 		var key = y + '-' + mm + '-' + dd;
 		var cls = 'month-date month-this';
-		/* ★ 변경: 100% 달성일에 isdone 클래스 추가 (파란색 표시) */
 		if (typeof challengeWritten[key] !== 'undefined') cls += ' isdone';
 		if (challengeSelectedDate == key) cls += ' selected';
 		html += '<a class="'+cls+'" href="./board.php?bo_table=<?=$bo_table?>&date='+key+'">'+d+'</a>';
@@ -631,7 +618,7 @@ function toggleChallengeSetting() {
 $(function(){
 	renderChallengeCalendar(challengeSelectedDate == 'all' ? '' : challengeSelectedDate);
 	$('#add-goal-btn').on('click', function() {
-		var html = '<div class="goal-input-row"><input type="text" class="goal-input" placeholder="목표를 입력하세요"><button type="button" class="save-goal ui-btn point">저장</button><button type="button" class="cancel-goal ui-btn">닫기</button></div>';
+		var html = '<div class="goal-input-row"><input type="text" class="goal-input" placeholder="목표를 입력하세요"><button type="button" class="save-goal ui-btn point">저장</button><button type="button" class="cancel-goal ui-btn">취소</button></div>';
 		$('#daily-goal-list').prepend(html);
 	});
 	$(document).on('click', '.cancel-goal', function(){ $(this).closest('.goal-input-row').remove(); });
@@ -657,9 +644,7 @@ $(function(){
 			} else {
 				alert(res.message ? res.message : '저장 실패');
 			}
-		}).fail(function(){
-			alert('저장 실패');
-		});
+		}).fail(function(){ alert('저장 실패'); });
 	});
 	$(document).on('click', '.delete-btn', function(){
 		var $item = $(this).closest('.goal-item');
@@ -677,9 +662,7 @@ $(function(){
 		}).done(function(res){
 			if (res.success) $item.remove();
 			else if (res.message) alert(res.message);
-		}).fail(function(){
-			alert('삭제 실패');
-		});
+		}).fail(function(){ alert('삭제 실패'); });
 	});
 });
 <?php } ?>
@@ -697,35 +680,22 @@ function all_checked(sw) {
 
 function fboardlist_submit(f) {
 	var chk_count = 0;
-
 	for (var i=0; i<f.length; i++) {
 		if (f.elements[i].name == "chk_wr_id[]" && f.elements[i].checked)
 			chk_count++;
 	}
-
 	if (!chk_count) {
 		alert(document.pressed + "할 게시물을 하나 이상 선택하세요.");
 		return false;
 	}
-
-	if(document.pressed == "선택복사") {
-		select_copy("copy");
-		return;
-	}
-
-	if(document.pressed == "선택이동") {
-		select_copy("move");
-		return;
-	}
-
+	if(document.pressed == "선택복사") { select_copy("copy"); return; }
+	if(document.pressed == "선택이동") { select_copy("move"); return; }
 	if(document.pressed == "선택삭제") {
 		if (!confirm("선택한 게시물을 정말 삭제하시겠습니까?\n\n한번 삭제한 자료는 복구할 수 없습니다."))
 			return false;
-
 		f.removeAttribute("target");
 		f.action = "./board_list_update.php";
 	}
-
 	return true;
 }
 
@@ -733,9 +703,7 @@ function select_copy(sw) {
 	var f = document.fboardlist;
 	if (sw == "copy") str = "복사";
 	else str = "이동";
-
 	var sub_win = window.open("", "move", "left=50, top=50, width=500, height=550, scrollbars=1");
-
 	f.sw.value = sw;
 	f.target = "move";
 	f.action = "./move.php";
