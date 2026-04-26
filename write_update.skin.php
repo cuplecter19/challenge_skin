@@ -24,6 +24,9 @@ if(!isset($temp['wr_goal_total'])){
 if(!isset($temp['wr_done_rate'])){
 	sql_query(" ALTER TABLE `{$write_table}` ADD `wr_done_rate` tinyint NOT NULL DEFAULT 0 AFTER `wr_goal_total` ");
 }
+if(!isset($temp['wr_html_log'])){
+	sql_query(" ALTER TABLE `{$write_table}` ADD `wr_html_log` varchar(255) NOT NULL DEFAULT '' AFTER `wr_done_rate` ");
+}
 unset($temp);
 
 if($w!='c' && $w!='cu'){
@@ -104,10 +107,68 @@ sql_query("
 		wr_done_rate='{$wr_done_rate}'
 	where wr_id='{$wr_id}'
 ");
-} 
+
+/* =====================================================================
+ * ★ HTML 로그 파일 처리 (로그 게시물 전용)
+ * ===================================================================== */
+$_hl_save_dir = G5_DATA_PATH.'/file/'.$bo_table;
+if (!is_dir($_hl_save_dir)) @mkdir($_hl_save_dir, G5_DIR_PERMISSION, true);
+
+$_hl_row     = sql_fetch("SELECT wr_html_log FROM {$write_table} WHERE wr_id='{$wr_id}'");
+$_hl_current = (isset($_hl_row['wr_html_log']) && $_hl_row['wr_html_log'] != '')
+               ? $_hl_row['wr_html_log'] : '';
+
+if ($wr_type_value == 'log' || $wr_type_value == '') {
+
+	if (!empty($_POST['html_log_del']) && $_hl_current != '') {
+		$_hl_del = $_hl_save_dir.'/'.$_hl_current;
+		if (is_file($_hl_del)) @unlink($_hl_del);
+		sql_query("UPDATE {$write_table} SET wr_html_log='' WHERE wr_id='{$wr_id}'");
+		$_hl_current = '';
+	}
+
+	if (isset($_FILES['html_log_file']) && is_array($_FILES['html_log_file'])
+		&& (int)$_FILES['html_log_file']['error'] === UPLOAD_ERR_OK
+		&& $_FILES['html_log_file']['tmp_name'] != '') {
+
+		$_hl_orig = $_FILES['html_log_file']['name'];
+		$_hl_ext  = strtolower(pathinfo($_hl_orig, PATHINFO_EXTENSION));
+
+		if (in_array($_hl_ext, array('html', 'htm'))) {
+			$_hl_sname = 'chatlog_'.$wr_id.'_'.time().'_'.rand(1000, 9999).'.'.$_hl_ext;
+			$_hl_fpath = $_hl_save_dir.'/'.$_hl_sname;
+
+			if (move_uploaded_file($_FILES['html_log_file']['tmp_name'], $_hl_fpath)) {
+				if ($_hl_current != '') {
+					$_hl_old = $_hl_save_dir.'/'.$_hl_current;
+					if (is_file($_hl_old)) @unlink($_hl_old);
+				}
+				sql_query("UPDATE {$write_table} SET wr_html_log='".sql_real_escape_string($_hl_sname)."' WHERE wr_id='{$wr_id}'");
+			}
+		}
+	}
+
+} else {
+	if ($_hl_current != '') {
+		$_hl_del2 = $_hl_save_dir.'/'.$_hl_current;
+		if (is_file($_hl_del2)) @unlink($_hl_del2);
+		sql_query("UPDATE {$write_table} SET wr_html_log='' WHERE wr_id='{$wr_id}'");
+	}
+}
+
+unset($_hl_save_dir, $_hl_row, $_hl_current, $_hl_orig, $_hl_ext,
+      $_hl_sname, $_hl_fpath, $_hl_del, $_hl_del2, $_hl_old);
+/* ★ HTML 로그 파일 처리 끝 ================================================ */
+
+} // end if($w!='c' && $w!='cu')
 
 if (isset($wr_type_value) && $wr_type_value == 'setting') goto_url(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table);
-// 작성 모드를 리다이렉트 URL에 포함
-$_redirect_mode = ($wr_type_value == 'challenge') ? 'challenge' : 'log';
-goto_url(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.'&mode='.$_redirect_mode.$qstr);
+
+/*
+ * ★ 리다이렉트 시 mode 파라미터를 붙이지 않음.
+ * mode는 목록 표시 모드일 뿐이며 작성 완료가 이를 강제하지 않도록 함.
+ * list.skin.php의 기본값(challenge) 또는 사용자가 마지막으로 선택한
+ * mode($qstr 내 포함 시)로 자연스럽게 유지됨.
+ */
+goto_url(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.$qstr);
 ?>
