@@ -4,21 +4,28 @@ if (!defined('_GNUBOARD_')) exit; // 개별 페이지 접근 불가
 add_stylesheet('<link rel="stylesheet" href="'.$board_skin_url.'/style.css">', 0);
 
 $setting = sql_fetch("SELECT * FROM {$write_table} WHERE wr_type = 'setting' ORDER BY wr_id desc LIMIT 1");
-// 작성 모드: mode 파라미터 또는 기존 글의 wr_type으로 결정
-$write_mode = isset($_GET['mode']) ? trim($_GET['mode']) : '';
-if (!in_array($write_mode, array('challenge', 'log'))) $write_mode = 'challenge'; // 기본값: 챌린지
-// 수정 시: 기존 글의 wr_type으로 초기값 설정
+
+/*
+ * 작성 모드 결정
+ * - 새 글(w='' 또는 w='p'): URL mode 파라미터 무시, 항상 'log' 기본값
+ *   (챌린지 게시물은 사용자가 체크박스를 직접 체크해서 선택)
+ * - 수정(w='u'): 기존 wr_type 에서 복원
+ */
+$write_mode = 'log'; // 신규 작성 기본값: 로그(일반) → 체크박스 해제 상태
 if ($w == 'u' && isset($write['wr_type'])) {
     if ($write['wr_type'] == 'challenge') $write_mode = 'challenge';
-    else if (in_array($write['wr_type'], array('log', ''))) $write_mode = 'log';
+    else $write_mode = 'log';
 }
-$is_challenge_post = ($write_mode == 'challenge'); // 편의 변수
+$is_challenge_post = ($write_mode == 'challenge');
 
 $wr_date_value = isset($_GET['date']) ? trim($_GET['date']) : '';
 if ($wr_date_value == '' && isset($write['wr_date']) && $write['wr_date'] != '') $wr_date_value = $write['wr_date'];
 if ($wr_date_value == '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $wr_date_value)) $wr_date_value = date('Y-m-d');
 $checklist_result = sql_query("SELECT wr_id, wr_content FROM {$write_table} WHERE wr_type = 'checklist' ORDER BY wr_datetime ASC");
 $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_done'] : ''));
+
+// 수정 시 기존 HTML 로그 파일명 (wr_html_log 컬럼)
+$existing_html_log = (isset($write['wr_html_log']) && $write['wr_html_log'] != '') ? $write['wr_html_log'] : '';
 ?>
 
 
@@ -37,7 +44,7 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 	<input type="hidden" name="sst" value="<?php echo $sst ?>">
 	<input type="hidden" name="sod" value="<?php echo $sod ?>">
 	<input type="hidden" name="page" value="<?php echo $page ?>">
-	<!-- wr_type은 JS가 챌린지 체크박스 상태에 따라 동적으로 설정 -->
+	<!-- wr_type: JS가 챌린지 체크박스 상태에 따라 동적으로 설정. 초기값은 항상 write_mode 기반 -->
 	<input type="hidden" name="wr_type" id="wr_type_hidden" value="<?php echo $is_challenge_post ? 'challenge' : 'log'; ?>">
 	<input type="hidden" name="wr_done" id="wr_done" value="<?php echo isset($write['wr_done']) ? $write['wr_done'] : ''; ?>">
 	<?php
@@ -160,12 +167,35 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 	</dl>
 	</div>
 
+	<!-- ★ HTML 채팅 로그 첨부 (로그 게시물 전용 / bf_file[] 과 무관한 독립 업로드) -->
+	<div id="log-html-upload" style="display:<?php echo $is_challenge_post ? 'none' : 'block'; ?>;">
+	<dl>
+		<dt>채팅 로그<br><small style="font-weight:normal; font-size:11px; color:#aaa;">(.html)</small></dt>
+		<dd>
+			<input type="file" name="html_log_file" id="html_log_file" accept=".html,.htm"
+				class="frm_file frm_input full"
+				title="HTML 채팅 로그 파일 (.html 또는 .htm)">
+			<?php if ($w == 'u' && $existing_html_log != '') { ?>
+			<div style="margin-top:6px; font-size:12px; color:#666;">
+				현재 첨부:
+				<strong><?php echo htmlspecialchars(basename($existing_html_log), ENT_QUOTES, 'UTF-8'); ?></strong>
+				&nbsp;
+				<label style="cursor:pointer;">
+					<input type="checkbox" name="html_log_del" value="1"> 기존 파일 삭제
+				</label>
+			</div>
+			<?php } ?>
+			<p style="font-size:12px; color:#999; margin-top:4px;">HTML 채팅 로그 파일을 첨부하면 본문 최하단에 자동으로 출력됩니다.</p>
+		</dd>
+	</dl>
+	</div>
+
 	<dl>
 		<dt>내용</dt>
 		<dd>
 			<div class="wr_content">
 				<?php if($write_min || $write_max) { ?>
-				<p id="char_count_desc" style="margin-bottom:7px;">이 게시판은 최소 <strong><?php echo $write_min; ?></strong>자 이상, 최대 <strong><?php echo $write_max; ?></strong>자 이하까지 쓰실 수 있습니다.</p>
+				<p id="char_count_desc" style="margin-bottom:7px;">이 게시판은 최소 <strong><?php echo $write_min; ?></strong>자 이상, 최대 <strong><?php echo $write_max; ?></strong>자 이하까지 쓸 수 있습니다. (<span id="char_count">0</span>자)</p>
 				<?php } ?>
 				<?php echo $editor_html; ?>
 			</div>
@@ -265,6 +295,16 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 			}
 		}
 
+		// HTML 로그 파일 유효성 검사 (파일이 선택된 경우)
+		var htmlLogInput = document.getElementById('html_log_file');
+		if (htmlLogInput && htmlLogInput.files && htmlLogInput.files.length > 0) {
+			var _hfname = htmlLogInput.files[0].name.toLowerCase();
+			if (_hfname.slice(-5) !== '.html' && _hfname.slice(-4) !== '.htm') {
+				alert('채팅 로그는 .html 또는 .htm 파일만 첨부 가능합니다.');
+				return false;
+			}
+		}
+
 		var subject = "", content = "";
 		$.ajax({
 			url: g5_bbs_url+"/ajax.filter.php", type: "POST",
@@ -299,15 +339,15 @@ $dones = array_map('trim', explode(',', isset($write['wr_done']) ? $write['wr_do
 		else { $('#set_protect').css('display','none'); $('#wr_protect').val(''); }
 	});
 
-	console.log('g5_bbs_url =', typeof g5_bbs_url !== 'undefined' ? g5_bbs_url : 'UNDEFINED');
-
-	// 챌린지 체크박스 토글
+	// 챌린지 체크박스 토글: challenge-fields 와 log-html-upload 를 반대로 show/hide
 	$('#is_challenge_chk').on('change', function() {
 		if ($(this).is(':checked')) {
 			$('#challenge-fields').slideDown(150);
+			$('#log-html-upload').slideUp(150);
 			$('#wr_type_hidden').val('challenge');
 		} else {
 			$('#challenge-fields').slideUp(150);
+			$('#log-html-upload').slideDown(150);
 			$('#wr_type_hidden').val('log');
 		}
 	});
@@ -397,15 +437,15 @@ $(function() {
     });
     $('#btn-temp-list').on('click', function() {
         $.getJSON(g5_bbs_url + '/write_temp_list.php', { bo_table: '<?php echo $bo_table ?>' }, function(list) {
-            let html = `<button type="button" id="btn-temp-close" style="float:right;width:30px;background:#000;font-size:14px;color:#fff;border:none;cursor:pointer;">✖</button><h3 style="color:#fff;margin-bottom:15px;">임시 보관함</h3><label style="color:#eee;"><input type="checkbox" id="temp-select-all"> 전체선택</label><br><br>`;
+            let html = `<button type="button" id="btn-temp-close" style="float:right;width:30px;background:#000;font-size:14px;color:#fff;border:none;cursor:pointer;">✖</button><h3 style="color:#fff;margin:0 0 10px;">임시 보관함</h3>`;
             (list || []).forEach(v => {
                 let date = v.datetime ? v.datetime.substr(0,16) : '';
                 let tempDiv = document.createElement("div");
                 tempDiv.innerHTML = (v.content || "").replace(/<(p|div|br)[^>]*>/gi, '\n');
                 let pureText = (tempDiv.textContent || tempDiv.innerText || "").replace(/\xa0/g,' ').trim();
-                html += `<div class="temp-item" data-id="${v.id}" style="padding:10px 5px;border-bottom:1px solid #444;cursor:pointer;position:relative;color:#fff;"><strong style="display:block;font-size:14px;padding-right:30px;">${v.subject||'제목 없음'}</strong>${v.subtitle?`<span style="display:block;font-size:13px;font-weight:bold;color:#ddd;margin-top:4px;">${v.subtitle}</span>`:''}<small style="color:#888;font-size:11px;display:block;margin-top:2px;">${date}</small><span style="display:inline-block;margin-top:5px;font-size:11px;color:#999;">약 ${pureText.replace(/\s/g,'').length}자 / ${pureText.length}자 (공미포/공포)</span><input type="checkbox" class="temp-check" data-id="${v.id}" style="position:absolute;top:12px;right:5px;"></div>`;
+                html += `<div class="temp-item" data-id="${v.id}" style="padding:10px 5px;border-bottom:1px solid #444;cursor:pointer;position:relative;color:#fff;"><strong style="display:block;font-size:13px;">${v.subject||'(제목없음)'}</strong><span style="font-size:11px;color:#aaa;">${date}</span><p style="font-size:12px;margin:4px 0 0;color:#ccc;">${pureText.substr(0,60)}...</p><label style="position:absolute;top:10px;right:5px;" onclick="event.stopPropagation()"><input type="checkbox" class="temp-check" data-id="${v.id}"></label></div>`;
             });
-            html += '<br><button type="button" id="btn-temp-delete" style="width:100px;padding:5px;background:#333;font-size:12px;color:#fff;border:none;cursor:pointer;">선택 임시글 삭제</button>';
+            html += `<br><button type="button" id="btn-temp-delete" style="width:100px;padding:5px;background:#333;font-size:12px;color:#fff;border:none;cursor:pointer;">선택 임시글 삭제</button> <label style="color:#fff;font-size:12px;"><input type="checkbox" id="temp-select-all"> 전체선택</label>`;
             $('#temp-layer').html(html).show();
             $('#temp-select-all').on('change', function() { $('.temp-check').prop('checked', $(this).prop('checked')); });
         }).fail(function(xhr){ alert('임시 보관함 불러오기 실패'); console.log(xhr.status, xhr.responseText); });
