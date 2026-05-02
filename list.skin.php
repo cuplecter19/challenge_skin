@@ -167,6 +167,7 @@ if ($view_mode == 'challenge' && $date != 'all') {
 }
 
 if ($_need_repaginate) {
+	// 아보카도 에디션 관리자 설정 필드: bo_page_rows (페이지당 목록 수)
 	$_rows_per_page = max(1, (int)$board['bo_page_rows']);
 	$_current_page  = max(1, (int)$page);
 	$_offset        = ($_current_page - 1) * $_rows_per_page;
@@ -201,7 +202,8 @@ if ($_need_repaginate) {
 	}
 	$list = $_new_list;
 
-	$_page_count  = max(1, (int)$board['bo_page_count']);
+	// 페이지 그룹 크기: bo_page_count 값을 사용하되, 최소 10 보장
+	$_page_count  = max(10, (int)$board['bo_page_count']);
 	$_total_pages = max(1, (int)ceil($_filtered_total / $_rows_per_page));
 	$_pg_start    = (int)(floor(($_current_page - 1) / $_page_count) * $_page_count) + 1;
 	$_pg_end      = min($_pg_start + $_page_count - 1, $_total_pages);
@@ -310,7 +312,7 @@ if ($_need_repaginate) {
 				</div>
 			</div>
 			<div class="challenge-side-right">
-				<div class="challenge-streak">연속 <?=$streak?>일턳</div>
+				<div class="challenge-streak">👉연속 <?=$streak?>일👈</div>
 				<div class="challenge-goal-box" <?if($date=='all'){?>style="display:none"<?}?>>
 					<div class="challenge-goal-title">일일 목표</div>
 					<div id="daily-goal-list">
@@ -376,7 +378,6 @@ if ($_need_repaginate) {
 			else if ($_rate >= 30 && $stamp_urls[30] != '')  $_stamp_url = $stamp_urls[30];
 		}
 	?>
-		<!-- ★ log-item 클래스 추가: .avocado-list li 의 grid 레이아웃을 로그 모드에서 block 으로 리셋 -->
 		<li class="theme-box<?php echo ($view_mode=='log') ? ' log-item' : ''; ?> <? if ($list[$i]['is_notice']) echo "bo_notice"; ?>">
 			<?php if ($view_mode == 'challenge' && $_stamp_url != '') { ?>
 				<div class="done-stamp-overlay">
@@ -387,20 +388,34 @@ if ($_need_repaginate) {
 			<?php } ?>
 
 			<?php if ($view_mode == 'log') { ?>
-			<a href="<?php echo $list[$i]['href'] ?>" class="log-mode-row">
-   			 <span class="log-row-num"><?php echo $visible_count ?></span>
-    			<span class="log-row-title"><?php echo $list[$i]['subject']; ?></span>
-   			 <?php if ($list[$i]['wr_protect'] != '') { ?>
-   			     <span class="highlight">보호글</span>
-    			<?php } elseif (strstr($list[$i]['wr_option'], 'secret')) { ?>
-     			   <span class="highlight">비밀글</span>
- 			   <?php } elseif ($list[$i]['wr_secret']) { ?>
-  			      <span class="highlight">멤버글</span>
-  			  <?php } ?>
- 			   <span class="log-row-date">
-  			      <?php if (!$list[$i]['is_notice']) echo date('Y.m.d.', strtotime($list[$i]['wr_datetime'])); ?>
-   			 </span>
-			</a>
+			<!-- ✅ 체크박스와 링크를 flex 래퍼로 감싸 체크박스를 넘버링 왼쪽에 배치 -->
+			<div style="display:flex; align-items:center;">
+				<?php if ($is_checkbox) { ?>
+				<span class="td_chk" style="flex-shrink:0; margin-left:6px;">
+					<label for="chk_wr_id_<?php echo $i ?>" class="sound_only">
+						<?php echo $list[$i]['subject'] ?>
+					</label>
+					<input type="checkbox"
+						   name="chk_wr_id[]"
+						   value="<?php echo $list[$i]['wr_id'] ?>"
+						   id="chk_wr_id_<?php echo $i ?>">
+				</span>
+				<?php } ?>
+				<a href="<?php echo $list[$i]['href'] ?>" class="log-mode-row" style="flex:1;">
+					<span class="log-row-num"><?php echo (int)$list[$i]['wr_id'] ?></span>
+					<span class="log-row-title"><?php echo $list[$i]['subject']; ?></span>
+					<?php if ($list[$i]['wr_protect'] != '') { ?>
+					    <span class="highlight">보호글</span>
+					<?php } elseif (strstr($list[$i]['wr_option'], 'secret')) { ?>
+					    <span class="highlight">비밀글</span>
+					<?php } elseif ($list[$i]['wr_secret']) { ?>
+					    <span class="highlight">멤버글</span>
+					<?php } ?>
+					<span class="log-row-date">
+					    <?php if (!$list[$i]['is_notice']) echo date('Y.m.d.', strtotime($list[$i]['wr_datetime'])); ?>
+					</span>
+				</a>
+			</div>
 			<?php } else { ?>
 			<span class="td_chk">
 				<?php if ($is_checkbox) { ?>
@@ -540,7 +555,7 @@ if ($_need_repaginate) {
 					<input type="checkbox" id="chkall" onclick="if (this.checked) all_checked(true); else all_checked(false);">
 				</p>
 				<button type="submit" name="btn_submit" value="선택삭제" onclick="document.pressed=this.value" class="ui-btn admin">선택삭제</button>
-				<button type="submit" name="btn_submit" value="선택이동" onclick="document.pressed=this.value" class="ui-btn admin">선택이동</button>
+				<?php /* ✅ 선택이동 버튼 제거: 이 스킨 구조와 호환되지 않아 사용 불가 */ ?>
 			<?php } ?>
 
 			<? if ($write_href) { ?><a href="<? echo $write_href ?>" class="ui-btn admin">글쓰기</a><? } ?>
@@ -689,7 +704,7 @@ function fboardlist_submit(f) {
 		return false;
 	}
 	if(document.pressed == "선택복사") { select_copy("copy"); return; }
-	if(document.pressed == "선택이동") { select_copy("move"); return; }
+	<?php /* ✅ 선택이동 분기 제거 */ ?>
 	if(document.pressed == "선택삭제") {
 		if (!confirm("선택한 게시물을 정말 삭제하시겠습니까?\n\n한번 삭제한 자료는 복구할 수 없습니다."))
 			return false;
