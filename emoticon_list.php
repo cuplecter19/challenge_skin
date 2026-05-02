@@ -17,7 +17,6 @@ add_stylesheet('<link rel="stylesheet" href="'.G5_CSS_URL.'/style.emoticon.css">
     <div id="emoticon_head"></div>
     <div id="page_title">
         이모티콘
-        <div class="subtitle">이모티콘 이름을 입력하면<br>글씨가 이모티콘으로 출력 돼요.</div>
         <i id="emoticon_line"></i>
     </div>
 
