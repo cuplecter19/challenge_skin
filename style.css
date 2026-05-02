@@ -110,7 +110,7 @@
 }
 .avocado-list li a.bo_row {
     display: grid;
-    grid-template-columns: 50px 1fr;
+    grid-template-columns: 1fr;
     grid-column: 2;
     align-items: center;
     min-width: 0;
@@ -119,6 +119,9 @@
     padding: 0;
     text-decoration: none;
     color: #333;
+}
+.avocado-list li a.bo_row.has-thumb {
+    grid-template-columns: 50px 1fr;
 }
 
 /* 썸네일: li 높이에 맞춰 1:1 정사각형 유지 */
