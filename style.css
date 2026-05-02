@@ -1,15 +1,9 @@
 @charset "utf-8";
 
 @font-face {
-    font-family: 'Mona12';
-    src: url('../../../data/font/Mona12.woff2') format('woff2');
+    font-family: 'Mona10';
+    src: url('../../../data/font/Mona10.woff2') format('woff2');
     font-weight: normal;
-    font-display: swap;
-}
-@font-face {
-    font-family: 'YPairing';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-4@1.1/YPairingFont.woff2') format('woff2');
-    font-weight: 400;
     font-display: swap;
 }
 @font-face {
@@ -18,7 +12,6 @@
     font-weight: 600;
     font-display: swap;
 }
-@import url('https://cdn.jsdelivr.net/gh/Project-Noonnu/noonfonts_2107@1.1/Pretendard-Regular.woff');
 
 /* ===== 공지 스크롤 ===== */
 .board-notice {
@@ -108,7 +101,7 @@
 .avocado-list li a {
     display: flex;
     align-items: center;
-    padding: 10px 16px;
+    padding: 10px 16px 10px 0;
     line-height: 1.4;
     text-decoration: none;
     color: #333;
@@ -182,9 +175,9 @@
     padding: 2px 7px;
     border-radius: 6px;
     line-height: 1.4;
-    font-size: 9px;
-    margin-bottom: 0 !important;
-    font-family: inherit;
+    font-size: 10px;
+    margin: 0 !important;
+    font-family: 'Mona10';
     background: #E8F1FD;
     color: #5797f8;
     border: 1px solid #C5DBFA;
@@ -425,9 +418,8 @@
 .challenge-streak {
     padding: 12px;
     text-align: center;
-    font-family: 'YPairing';
-    font-weight: 700;
-    font-size: 18px;
+    font-family: 'Mona12';
+    font-size: 24px;
     color: #5797f8;
     background: #fff;
     border-radius: 12px;
@@ -973,7 +965,7 @@
     border-radius: 10px;
     background: #fff;
     color: #5797f8;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     word-break: keep-all;
     text-decoration: none;
