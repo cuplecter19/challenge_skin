@@ -445,8 +445,13 @@ if ($_need_repaginate) {
 			if ($show_preview) {
 				$res_row = sql_fetch(" select wr_content from {$write_table} where wr_id = " . (int)$list[$i]['wr_id']);
 				$content = $res_row['wr_content'];
-				preg_match("/<img[^>]*src=[\"']?([^>\"']+)[\"']?[^>]*>/i", $content, $matches);
-				$first_img = isset($matches[1]) ? $matches[1] : '';
+				$first_img = '';
+				// data-editor-divider div 안의 img를 제거한 뒤 첫 번째 실제 이미지 탐색
+				$content_no_divider = preg_replace('/<div[^>]*data-editor-divider[^>]*>.*?<\/div>/is', '', $content);
+				if (preg_match("/<img[^>]*src=[\"']([^\"']+)[\"'][^>]*>/i", $content_no_divider, $matches) ||
+				    preg_match("/<img[^>]*src=([^\s\"'>]+)[^>]*>/i", $content_no_divider, $matches)) {
+					$first_img = $matches[1];
+				}
 				$text = html_entity_decode(htmlspecialchars_decode($content), ENT_QUOTES, 'UTF-8');
 				$text = strip_tags($text);
 				$text = preg_replace('/(\s|&nbsp;)+/u', ' ', $text);
@@ -469,7 +474,7 @@ if ($_need_repaginate) {
 				<?php } ?>
 			</span>
 
-			<a href="<? echo $list[$i]['href'] ?>" class="bo_row">
+			<a href="<? echo $list[$i]['href'] ?>" class="bo_row<?php echo $first_img ? ' has-thumb' : ''; ?>">
 				<?php if ($first_img) { ?>
 				<div class="list-thumb">
 					<img src="<?php echo htmlspecialchars($first_img, ENT_QUOTES, 'UTF-8'); ?>" alt="" class="list-thumb-img">
