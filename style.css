@@ -109,9 +109,10 @@
     min-width: 0;
 }
 .avocado-list li a.bo_row {
-    display: flex;
-    flex-direction: row;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: 50px 1fr;
+    grid-column: 2;
+    align-items: center;
     min-width: 0;
     width: 100%;
     overflow: hidden;
