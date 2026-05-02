@@ -417,6 +417,46 @@ if ($_need_repaginate) {
 				</a>
 			</div>
 			<?php } else { ?>
+			<?php
+			/* ===== 미리보기 변수 사전 계산 ===== */
+			$is_secret_opt    = strstr($list[$i]['wr_option'], 'secret');
+			$is_member_opt    = (isset($list[$i]['wr_secret']) && $list[$i]['wr_secret']);
+			$is_protect_opt   = ($list[$i]['wr_protect'] != '');
+			$is_mine          = ($list[$i]['mb_id'] && $list[$i]['mb_id'] == $member['mb_id']);
+			$can_read         = ($member['mb_level'] >= $board['bo_read_level']);
+			$show_preview     = false;
+			$cookie_name      = 'custom_pw_ok_' . $list[$i]['wr_id'];
+			$has_unlock_cookie = (isset($_COOKIE[$cookie_name]) && $_COOKIE[$cookie_name] == '1');
+
+			if ($is_admin || $is_mine) {
+				$show_preview = true;
+			} else if ($is_protect_opt) {
+				$show_preview = $has_unlock_cookie ? true : false;
+			} else if ($is_secret_opt) {
+				$show_preview = false;
+			} else if ($is_member_opt) {
+				$show_preview = ($is_member && $can_read) ? true : false;
+			} else {
+				$show_preview = $can_read ? true : false;
+			}
+
+			$first_img    = '';
+			$preview_text = '';
+			if ($show_preview) {
+				$res_row = sql_fetch(" select wr_content from {$write_table} where wr_id = " . (int)$list[$i]['wr_id']);
+				$content = $res_row['wr_content'];
+				preg_match("/<img[^>]*src=[\"']?([^>\"']+)[\"']?[^>]*>/i", $content, $matches);
+				$first_img = isset($matches[1]) ? $matches[1] : '';
+				$text = html_entity_decode(htmlspecialchars_decode($content), ENT_QUOTES, 'UTF-8');
+				$text = strip_tags($text);
+				$text = preg_replace('/(\s|&nbsp;)+/u', ' ', $text);
+				$text = preg_replace('/^\s+|\s+$/u', '', $text);
+				if ($text) {
+					$cut_len = ($list[$i]['comment_cnt'] > 0) ? 120 : 180;
+					$preview_text = mb_strimwidth($text, 0, $cut_len, "⋯", "UTF-8");
+				}
+			}
+			?>
 			<span class="td_chk">
 				<?php if ($is_checkbox) { ?>
 					<label for="chk_wr_id_<?php echo $i ?>" class="sound_only">
@@ -430,109 +470,74 @@ if ($_need_repaginate) {
 			</span>
 
 			<a href="<? echo $list[$i]['href'] ?>" class="bo_row">
-				<div class="bo_title">
-					<strong class="list-title">
-						<span class="title-main"><?php echo $list[$i]['subject']; ?></span>
+				<?php if ($first_img) { ?>
+				<div class="list-thumb">
+					<img src="<?php echo htmlspecialchars($first_img, ENT_QUOTES, 'UTF-8'); ?>" alt="" class="list-thumb-img">
+				</div>
+				<?php } ?>
 
-						<?php if (isset($list[$i]['wr_1']) && $list[$i]['wr_1']) { ?>
-							<span class="subtitle-wrap">
-								<span class="list-subtitle">
-									<?php echo get_text($list[$i]['wr_1']); ?>
+				<div class="bo_row-content">
+					<div class="bo_title">
+						<strong class="list-title">
+							<span class="title-main"><?php echo $list[$i]['subject']; ?></span>
+
+							<?php if (isset($list[$i]['wr_1']) && $list[$i]['wr_1']) { ?>
+								<span class="subtitle-wrap">
+									<span class="list-subtitle">
+										<?php echo get_text($list[$i]['wr_1']); ?>
+									</span>
 								</span>
+							<?php } ?>
+						</strong>
+
+						<div class="list-preview">
+						<?php if ($show_preview) { ?>
+							<?php if ($preview_text) { echo htmlspecialchars($preview_text, ENT_QUOTES, 'UTF-8'); } ?>
+						<?php } else { ?>
+							<span class="list-preview-lock">
+							<?php
+							if ($is_protect_opt) {
+								echo "🔒 보호글입니다. (비밀번호 입력 필요)";
+							} else if ($is_secret_opt) {
+								echo "🔒 비공개 글입니다.";
+							} else if ($is_member_opt) {
+								if (!$is_member) echo "🔒 멤버공개 글입니다.";
+								else echo "🔒 읽기 권한이 부족합니다.";
+							} else {
+								echo "🔒 읽기 권한이 없습니다.";
+							}
+							?>
 							</span>
 						<?php } ?>
-					</strong>
-
-					<div class="list-preview" style="display:flex; gap:15px; align-items:flex-start;">
-					<?php
-					$is_secret_opt = strstr($list[$i]['wr_option'], 'secret');
-					$is_member_opt = (isset($list[$i]['wr_secret']) && $list[$i]['wr_secret']);
-					$is_protect_opt = ($list[$i]['wr_protect'] != '');
-					$is_mine = ($list[$i]['mb_id'] && $list[$i]['mb_id'] == $member['mb_id']);
-					$can_read = ($member['mb_level'] >= $board['bo_read_level']);
-					$show_preview = false;
-					$cookie_name = 'custom_pw_ok_' . $list[$i]['wr_id'];
-					$has_unlock_cookie = (isset($_COOKIE[$cookie_name]) && $_COOKIE[$cookie_name] == '1');
-
-					if ($is_admin || $is_mine) {
-						$show_preview = true;
-					} else if ($is_protect_opt) {
-						$show_preview = $has_unlock_cookie ? true : false;
-					} else if ($is_secret_opt) {
-						$show_preview = false;
-					} else if ($is_member_opt) {
-						$show_preview = ($is_member && $can_read) ? true : false;
-					} else {
-						$show_preview = $can_read ? true : false;
-					}
-
-					if ($show_preview) {
-						$res_row = sql_fetch(" select wr_content from {$write_table} where wr_id = '{$list[$i]['wr_id']}' ");
-						$content = $res_row['wr_content'];
-
-						preg_match("/<img[^>]*src=[\"']?([^>\"']+)[\"']?[^>]*>/i", $content, $matches);
-						$first_img = isset($matches[1]) ? $matches[1] : '';
-
-						if ($first_img) {
-							echo '<div class="thumb-area" style="flex-shrink:0;"><img src="'.$first_img.'" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #eee;"></div>';
-						}
-
-						echo '<div class="text-area" style="flex:1;">';
-
-						$text = html_entity_decode(htmlspecialchars_decode($content), ENT_QUOTES, 'UTF-8');
-						$text = strip_tags($text);
-						$text = preg_replace('/(\s|&nbsp;)+/u', ' ', $text);
-						$text = preg_replace('/^\s+|\s+$/u', '', $text);
-
-						if ($text) {
-							$cut_len = ($list[$i]['comment_cnt'] > 0) ? 120 : 180;
-							echo mb_strimwidth($text, 0, $cut_len, "⋯", "UTF-8");
-						}
-
-						echo '</div>';
-					} else {
-						echo "<span style='color:#999; font-size:13px;'>";
-						if ($is_protect_opt) {
-							echo "🔒 보호글입니다. (비밀번호 입력 필요)";
-						} else if ($is_secret_opt) {
-							echo "🔒 비공개 글입니다.";
-						} else if ($is_member_opt) {
-							if (!$is_member) echo "🔒 멤버공개 글입니다.";
-							else echo "🔒 읽기 권한이 부족합니다.";
-						} else {
-							echo "🔒 읽기 권한이 없습니다.";
-						}
-						echo "</span>";
-					}
-					?>
+						</div>
 					</div>
-				</div>
 
-				<div class="info">
-					<? if ($list[$i]['comment_cnt']) { ?>
-						<span class="comment-count">댓글 (<?= $list[$i]['comment_cnt'] ?>)</span>
-					<? } ?>
+					<div class="info">
+						<? if ($list[$i]['comment_cnt']) { ?>
+							<span class="comment-count">댓글 (<?= $list[$i]['comment_cnt'] ?>)</span>
+						<? } ?>
 
-					<? if (strstr($list[$i]['wr_option'], 'secret')) { ?>
-						<span class="highlight">비밀글</span>
-					<? } else if ($list[$i]['wr_secret']) { ?>
-						<span class="highlight">멤버글</span>
-					<? } else if ($list[$i]['wr_protect'] != '') { ?>
-						<span class="highlight">보호글</span>
-					<? } ?>
+						<? if (strstr($list[$i]['wr_option'], 'secret')) { ?>
+							<span class="highlight">비밀글</span>
+						<? } else if ($list[$i]['wr_secret']) { ?>
+							<span class="highlight">멤버글</span>
+						<? } else if ($list[$i]['wr_protect'] != '') { ?>
+							<span class="highlight">보호글</span>
+						<? } ?>
 
-					<span class="name">
-						<? if (!$list[$i]['is_notice']) echo $list[$i]['name'] ?>
-					</span>
+						<span class="name">
+							<? if (!$list[$i]['is_notice']) echo $list[$i]['name'] ?>
+						</span>
 
-					<span class="date">
-					<?
-					if (!$list[$i]['is_notice'])
-						echo date('Y.m.d.', strtotime($list[$i]['wr_datetime'])) .
-							 '&nbsp;&nbsp;' .
-							 date('H:i', strtotime($list[$i]['wr_datetime']));
-					?>
-					</span>
+						<span class="date">
+						<?
+						if (!$list[$i]['is_notice'])
+							echo date('Y.m.d.', strtotime($list[$i]['wr_datetime'])) .
+								 '&nbsp;&nbsp;' .
+								 date('H:i', strtotime($list[$i]['wr_datetime']));
+						?>
+						</span>
+					</div>
 				</div>
 			</a>
 			<?php } ?>
